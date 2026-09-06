@@ -62,19 +62,58 @@ true
 ```
 """
 function free_propagation(ψ, x, y, z; k=1)
+    free_propagation!(stack(ψ for _ in z), x, y, z; k)
+end
+
+"""
+    free_propagation!(ψ, x, y, z; k=1, plan=plan_fft!(ψ, (1, 2)), iplan=plan_ifft!(ψ, (1, 2)))
+
+Propagate `ψ` over a distance `z`, overwriting it with the result.
+
+This is the in-place counterpart of [`free_propagation`](@ref), for the case where the output shares
+the shape of the input: `ψ` may be a 2D profile propagated to a single `z`, or a 3D stack of
+profiles propagated to one `z` each.
+
+`plan` and `iplan` are the in-place forward and inverse transforms over the first two dimensions,
+as built by `FFTW.plan_fft!` and `FFTW.plan_ifft!`. Passing them in lets a sequence of propagations
+over the same grid reuse a single plan instead of building a new one on every call, so that a
+propagation costs a small constant allocation rather than a copy of the field. A plan may only be
+applied to an array of the size,
+strides and memory alignment it was created from, so build it from the very buffer that is
+propagated.
+
+# Example
+
+```jldoctest
+x = LinRange(-10, 10, 256)
+y = LinRange(-10, 10, 512)
+
+ψ = hg(x, y; m=3, n=2)
+ψ′ = copy(ψ)
+
+free_propagation!(ψ′, x, y, 0.5) ≈ free_propagation(ψ, x, y, 0.5)
+
+# output
+
+true
+```
+
+See also [`free_propagation`](@ref).
+"""
+function free_propagation!(ψ, x, y, z; k=1,
+    plan=plan_fft!(ψ, (1, 2)), iplan=plan_ifft!(ψ, (1, 2)))
     qx = fftfreq(length(x), 2π / step(x))
     qy = fftfreq(length(y), 2π / step(y))
-    result = stack(ψ for _ in z)
 
-    backend = get_backend(result)
+    backend = get_backend(ψ)
     _fresnel_kernel! = fresnel_kernel!(backend)
-    ndrange = three_d_size(result)
+    ndrange = three_d_size(ψ)
 
-    fft!(result, (1, 2))
-    _fresnel_kernel!(result, qx, qy, z, k; ndrange)
-    ifft!(result, (1, 2))
+    plan * ψ
+    _fresnel_kernel!(ψ, qx, qy, z, k; ndrange)
+    iplan * ψ
 
-    result
+    ψ
 end
 
 function free_propagation(ψ, x, y, z, scaling; k=1)

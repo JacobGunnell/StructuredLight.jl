@@ -62,3 +62,42 @@ if CUDA.functional()
         @test Array(grid_linear_combination(funcs, coeffs, grid, backend=CUDABackend())) ≈ lg(rs, rs, l=-1)
     end
 end
+@testset "In-place propagation" begin
+    xs = LinRange(-20, 20, 256)
+    ys = LinRange(-10, 10, 128)
+    ψ₀ = hg(xs, ys; m=2, n=1)
+
+    for z ∈ (0.1, 0.5, 1)
+        @test free_propagation!(copy(ψ₀), xs, ys, z) ≈ free_propagation(ψ₀, xs, ys, z)
+    end
+
+    # a 3D stack is propagated slice by slice, one distance each
+    zs = [0.1, 0.5, 1.0]
+    @test free_propagation!(stack(ψ₀ for _ ∈ zs), xs, ys, zs) ≈ free_propagation(ψ₀, xs, ys, zs)
+
+    # reusing a plan gives the same answer without copying the field: what is left is the constant
+    # overhead of launching the kernel, which does not grow with the size of ψ
+    ψ = copy(ψ₀)
+    plan = FFTW.plan_fft!(ψ, (1, 2))
+    iplan = FFTW.plan_ifft!(ψ, (1, 2))
+    @test free_propagation!(ψ, xs, ys, 0.5; plan, iplan) ≈ free_propagation(ψ₀, xs, ys, 0.5)
+
+    copyto!(ψ, ψ₀)
+    free_propagation!(ψ, xs, ys, 0.5; plan, iplan)
+    copyto!(ψ, ψ₀)
+    @test @allocated(free_propagation!(ψ, xs, ys, 0.5; plan, iplan)) < sizeof(ψ) ÷ 100
+end
+
+@testset "Overlap" begin
+    xs = LinRange(-20, 20, 256)
+    ys = LinRange(-10, 10, 128)
+    # same indices but a different waist, so the two are not orthogonal and the overlap is O(1)
+    ψ = hg(xs, ys; m=2, n=1)
+    φ = hg(xs, ys; m=2, n=1, w=1.5)
+
+    # `overlap` conjugates its first argument, and must not copy the field to scale it
+    @test overlap(ψ, φ, xs, ys) ≈ step(xs) * step(ys) * sum(conj(ψ) .* φ)
+    @test overlap(ψ, φ, xs, ys) ≈ conj(overlap(φ, ψ, xs, ys))
+    overlap(ψ, φ, xs, ys)
+    @test @allocated(overlap(ψ, φ, xs, ys)) < sizeof(ψ) ÷ 8
+end

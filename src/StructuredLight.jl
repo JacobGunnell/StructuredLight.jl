@@ -19,7 +19,7 @@ using DispatchDoctor
         linear_combination, grid_linear_combination!, grid_linear_combination
 
     include("free_propagation.jl")
-    export free_propagation
+    export free_propagation, free_propagation!
 
     include("kerr_propagation.jl")
     export kerr_propagation

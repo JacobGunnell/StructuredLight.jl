@@ -1,7 +1,7 @@
 using Preferences: set_preferences!
 set_preferences!("StructuredLight", "dispatch_doctor_mode" => "error")
 
-using StructuredLight, LinearAlgebra, CUDA
+using StructuredLight, LinearAlgebra, CUDA, FFTW
 using Test, Documenter
 
 DocMeta.setdocmeta!(StructuredLight, :DocTestSetup, :(using StructuredLight); recursive=true)
