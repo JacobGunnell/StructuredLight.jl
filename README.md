@@ -61,7 +61,7 @@ hologram = generate_hologram(target_field, 255, 20, 20)
 
 ## Compatibility
 
-- **Julia**: 1.10 - 1.12
+- **Julia**: 1.10 - 1.13
 - **GPU Support**: CUDA.jl for NVIDIA GPUs
 - **Visualization**: Makie.jl ecosystem
 - **Documentation**: [Full documentation available](https://marcsgil.github.io/StructuredLight.jl)
